@@ -1,0 +1,15 @@
+# 依赖与构建产物
+node_modules/
+dist/
+
+# IDE 工具目录（技能文档、内部计划）
+.codebuddy/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 验收截图 / 临时文件
+shot-*.png
+*.log
+.DS_Store

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>动态广场</title>
+<style>
+  :root {
+    --bg1: #eef2ff;
+    --bg2: #f7f9fc;
+    --card: #ffffff;
+    --primary: #5b6cff;
+    --primary2: #845ef7;
+    --text: #1f2329;
+    --muted: #8a919f;
+    --border: #eceff5;
+    --danger: #ef4444;
+    --shadow: 0 8px 24px rgba(31, 41, 55, .08);
+    --shadow-hover: 0 12px 30px rgba(91, 108, 255, .16);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    line-height: 1.6;
+    background: linear-gradient(160deg, var(--bg1), var(--bg2));
+    background-attachment: fixed;
+    padding: 0 0 40px;
+  }
+
+  /* 顶部品牌条 */
+  .topbar {
+    background: linear-gradient(135deg, var(--primary), var(--primary2));
+    color: #fff;
+    padding: 28px 16px 26px;
+    text-align: center;
+    box-shadow: 0 6px 20px rgba(91, 108, 255, .25);
+  }
+  .logo {
+    width: 56px; height: 56px;
+    margin: 0 auto 10px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, .18);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700;
+    backdrop-filter: blur(4px);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25);
+  }
+  .topbar h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+  .topbar p { font-size: 13px; opacity: .85; margin-top: 4px; }
+
+  .container { max-width: 600px; margin: -18px auto 0; padding: 0 14px; }
+
+  /* 发布区 */
+  .composer {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .composer-row { display: flex; gap: 12px; }
+  .me-avatar {
+    flex: 0 0 auto;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ffb86c, #ff7a59);
+    color: #fff; font-weight: 700; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  textarea {
+    flex: 1;
+    border: none;
+    resize: vertical;
+    min-height: 70px;
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    padding-top: 8px;
+  }
+  textarea::placeholder { color: #b7bdc9; }
+  .composer-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 8px; padding-top: 10px;
+    border-top: 1px dashed var(--border);
+  }
+  .count { font-size: 13px; color: var(--muted); transition: color .2s; }
+  .count.near { color: #f59e0b; }
+  .count.over { color: var(--danger); }
+
+  button { font-family: inherit; font-size: 14px; border: none; border-radius: 10px; cursor: pointer; transition: transform .12s, box-shadow .2s, opacity .2s; }
+  button:active { transform: scale(.96); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary2));
+    color: #fff; padding: 9px 22px; font-weight: 600;
+    box-shadow: 0 6px 16px rgba(91, 108, 255, .3);
+  }
+  .btn-primary:hover { box-shadow: 0 8px 20px rgba(91, 108, 255, .45); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+  .btn-ghost {
+    background: #f3f5fb; color: var(--muted);
+    padding: 7px 14px; font-size: 13px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn-ghost:hover { color: var(--primary); background: #eef0ff; }
+
+  .toolbar { display: flex; gap: 8px; margin: 14px 2px 18px; flex-wrap: wrap; }
+
+  /* 动态列表 */
+  .feed { display: flex; flex-direction: column; gap: 14px; }
+  .post {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+    transition: transform .18s ease, box-shadow .18s ease;
+    animation: rise .35s ease both;
+  }
+  .post:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  .post-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    color: #fff; font-weight: 700; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    flex: 0 0 auto;
+  }
+  .post-meta { display: flex; flex-direction: column; line-height: 1.25; flex: 1; min-width: 0; }
+  .post-name { font-size: 14px; font-weight: 600; }
+  .post-time { font-size: 12px; color: var(--muted); }
+  .post-del {
+    background: transparent; color: var(--muted);
+    border: none; cursor: pointer; font-size: 12px;
+    padding: 4px 8px; border-radius: 8px; transition: all .15s;
+  }
+  .post-del:hover { color: var(--danger); background: #fdeaea; }
+  .post-body { font-size: 15px; color: #2b2f36; white-space: pre-wrap; word-break: break-word; padding-left: 50px; }
+
+  /* 空状态 */
+  .empty {
+    text-align: center; color: var(--muted);
+    padding: 48px 0; background: var(--card);
+    border: 1px dashed var(--border); border-radius: 16px;
+  }
+  .empty .emoji { font-size: 40px; display: block; margin-bottom: 10px; filter: grayscale(.2); }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 26px; }
+  footer code { background: #eef0ff; color: var(--primary); padding: 1px 6px; border-radius: 6px; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo">广</div>
+    <h1>动态广场</h1>
+    <p>极简动态发布 · 自动本地存储 · 无需联网</p>
+  </div>
+
+  <div class="container">
+    <section class="composer">
+      <div class="composer-row">
+        <div class="me-avatar">我</div>
+        <textarea id="input" maxlength="500" placeholder="此刻想说点什么？"></textarea>
+      </div>
+      <div class="composer-bar">
+        <span class="count" id="count">0 / 500</span>
+        <button class="btn-primary" id="publish">发布</button>
+      </div>
+    </section>
+
+    <div class="toolbar">
+      <button class="btn-ghost" id="exportBtn">⬇ 导出备份</button>
+    </div>
+
+    <main class="feed" id="feed"></main>
+
+    <footer>数据自动保存在 <code>D:\Codebuddy\posts.json</code>，刷新或重开浏览器都不会丢失</footer>
+  </div>
+
+<script>
+  const MAX = 500;
+  const AVATAR_GRADIENTS = [
+    "linear-gradient(135deg,#ff9a9e,#fad0c4)",
+    "linear-gradient(135deg,#a18cd1,#fbc2eb)",
+    "linear-gradient(135deg,#84fab0,#8fd3f4)",
+    "linear-gradient(135deg,#ffecd2,#fcb69f)",
+    "linear-gradient(135deg,#5b6cff,#845ef7)",
+    "linear-gradient(135deg,#f6d365,#fda085)"
+  ];
+
+  const input = document.getElementById("input");
+  const count = document.getElementById("count");
+  const publishBtn = document.getElementById("publish");
+  const feed = document.getElementById("feed");
+  const exportBtn = document.getElementById("exportBtn");
+
+  // 根据 id 选一个稳定的头像渐变
+  function avatarFor(id) {
+    let h = 0;
+    for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    return AVATAR_GRADIENTS[h % AVATAR_GRADIENTS.length];
+  }
+
+  // 相对时间
+  function relTime(ts) {
+    if (!ts) return "";
+    const diff = Date.now() - ts;
+    const s = Math.floor(diff / 1000);
+    if (s < 60) return "刚刚";
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + " 分钟前";
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + " 小时前";
+    const d = Math.floor(h / 24);
+    if (d < 30) return d + " 天前";
+    return new Date(ts).toLocaleDateString("zh-CN");
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, c => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
+  // ---- 数据层：调用后端接口 ----
+  async function api(url, options) {
+    const res = await fetch(url, options);
+    if (!res.ok) throw new Error("请求失败 " + res.status);
+    const ct = res.headers.get("Content-Type") || "";
+    return ct.includes("application/json") ? res.json() : null;
+  }
+
+  async function loadPosts() {
+    return api("/api/posts");
+  }
+
+  async function publishPost(text) {
+    return api("/api/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+  }
+
+  async function deletePost(id) {
+    return api("/api/posts/" + encodeURIComponent(id), { method: "DELETE" });
+  }
+
+  // ---- 渲染 ----
+  async function render() {
+    let posts;
+    try {
+      posts = await loadPosts();
+    } catch (e) {
+      feed.innerHTML = '<div class="empty"><span class="emoji">⚠️</span>无法连接服务，请确认 server.py 已启动</div>';
+      return;
+    }
+    if (!posts || posts.length === 0) {
+      feed.innerHTML = '<div class="empty"><span class="emoji">🌱</span>还没有动态，发布第一条吧～</div>';
+      return;
+    }
+    feed.innerHTML = posts.map(p => `
+      <article class="post">
+        <div class="post-head">
+          <div class="avatar" style="background:${avatarFor(p.id)}">${escapeHtml((p.text || "动")[0])}</div>
+          <div class="post-meta">
+            <span class="post-name">动态用户</span>
+            <span class="post-time">${relTime(p.ts) || p.time}</span>
+          </div>
+          <button class="post-del" data-id="${p.id}">删除</button>
+        </div>
+        <div class="post-body">${escapeHtml(p.text)}</div>
+      </article>
+    `).join("");
+  }
+
+  function updateCount() {
+    const len = input.value.length;
+    count.textContent = `${len} / ${MAX}`;
+    count.classList.toggle("near", len >= 450 && len <= MAX);
+    count.classList.toggle("over", len > MAX);
+  }
+
+  async function publish() {
+    const text = input.value.trim();
+    if (!text) return;
+    publishBtn.disabled = true;
+    try {
+      await publishPost(text);
+      input.value = "";
+      updateCount();
+      await render();
+    } catch (e) {
+      alert("发布失败：" + e.message);
+    } finally {
+      publishBtn.disabled = false;
+    }
+  }
+
+  // 删除
+  feed.addEventListener("click", async e => {
+    if (e.target.classList.contains("post-del")) {
+      const id = e.target.dataset.id;
+      e.target.textContent = "删除中…";
+      e.target.disabled = true;
+      try {
+        await deletePost(id);
+        await render();
+      } catch (err) {
+        alert("删除失败：" + err.message);
+        e.target.textContent = "删除";
+        e.target.disabled = false;
+      }
+    }
+  });
+
+  // 导出备份（下载当前数据）
+  exportBtn.addEventListener("click", async () => {
+    try {
+      const posts = await loadPosts();
+      const blob = new Blob([JSON.stringify(posts, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "posts-" + new Date().toISOString().slice(0, 10) + ".json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("导出失败：" + e.message);
+    }
+  });
+
+  input.addEventListener("input", updateCount);
+  publishBtn.addEventListener("click", publish);
+  input.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") publish();
+  });
+
+  updateCount();
+  render();
+</script>
+</body>
+</html>
