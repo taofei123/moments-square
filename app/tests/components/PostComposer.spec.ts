@@ -3,8 +3,10 @@ import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import PostComposer from '@/components/PostComposer.vue'
 
-function mountComposer() {
-  const wrapper = mount(PostComposer)
+function mountComposer(options: { submitting?: boolean } = {}) {
+  const wrapper = mount(PostComposer, {
+    props: options.submitting === undefined ? {} : { submitting: options.submitting },
+  })
   return {
     wrapper,
     input: () => wrapper.get('[data-test="composer-input"]'),
@@ -82,15 +84,48 @@ describe('PostComposer 数字跳动', () => {
 })
 
 describe('PostComposer 发布', () => {
-  it('点击发布抛出 submit 事件并清空输入', async () => {
+  it('点击发布只抛出 submit 事件，不清空输入（由父级决定何时 reset）', async () => {
     const { wrapper, input, counter, submit } = mountComposer()
     await input().setValue('  今天心情不错  ')
 
     await submit().trigger('click')
 
     expect(wrapper.emitted('submit')).toEqual([['  今天心情不错  ']])
+    expect((input().element as HTMLTextAreaElement).value).toBe('  今天心情不错  ')
+    expect(counter().text()).toBe('10 / 500')
+  })
+
+  it('调用暴露的 reset() 后清空输入且计数归零', async () => {
+    const { wrapper, input, counter } = mountComposer()
+    await input().setValue('发布成功后会被清空')
+
+    wrapper.vm.reset()
+    await nextTick()
+
     expect((input().element as HTMLTextAreaElement).value).toBe('')
     expect(counter().text()).toBe('0 / 500')
+  })
+
+  it('reset() 同时复位 bump 弹跳状态', async () => {
+    vi.useFakeTimers()
+    const { wrapper, input, counter } = mountComposer()
+    await input().setValue('嗨')
+    expect(counter().classes()).toContain('bump')
+
+    wrapper.vm.reset()
+    await nextTick()
+
+    expect(counter().classes()).not.toContain('bump')
+  })
+
+  it('submitting 为 true 时发布按钮禁用', async () => {
+    const { wrapper, input, submit } = mountComposer({ submitting: true })
+    await input().setValue('请求还在飞')
+
+    expect(submit().attributes('disabled')).toBeDefined()
+
+    await wrapper.setProps({ submitting: false })
+    expect(submit().attributes('disabled')).toBeUndefined()
   })
 
   it('纯空白内容不会触发发布', async () => {

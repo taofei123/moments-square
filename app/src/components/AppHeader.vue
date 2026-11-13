@@ -3,7 +3,7 @@
     <span class="veil" aria-hidden="true"></span>
     <div class="logo">心</div>
     <h1>心情日志</h1>
-    <p>极简动态发布 · 自动本地存储 · 无需联网</p>
+    <p>极简心情记录 · 数据存于后端 · 实时同步</p>
   </header>
 </template>
 

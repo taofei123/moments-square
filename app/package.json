@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "心情日志 —— Vue 3 + Pinia + Local Storage 的极简心情记录页",
+  "description": "心情日志 —— Vue 3 + Pinia 前端 + Hono 内存存储后端的极简心情记录页",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n api,web -c magenta,cyan \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:web": "vite",
+    "dev:api": "tsx watch server/index.ts",
+    "start:api": "tsx server/index.ts",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -13,6 +16,8 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.8",
+    "hono": "^4.13.18",
     "pinia": "^3.0.1",
     "vue": "^3.5.13"
   },
@@ -21,7 +26,9 @@
     "@types/node": "^22.10.5",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.6",
+    "concurrently": "^10.0.7",
     "jsdom": "^25.0.1",
+    "tsx": "^4.23.15",
     "typescript": "~5.7.2",
     "vite": "^6.0.7",
     "vitest": "^3.0.2",

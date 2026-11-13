@@ -2,6 +2,8 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { MAX_LEN } from '@/types/post'
 
+const props = withDefaults(defineProps<{ submitting?: boolean }>(), { submitting: false })
+
 const emit = defineEmits<{ submit: [text: string] }>()
 
 /** 接近上限时开始提醒的字符阈值 */
@@ -14,11 +16,19 @@ const bump = ref(false)
 const length = computed(() => draft.value.length)
 const nearLimit = computed(() => length.value >= NEAR_LIMIT && length.value <= MAX_LEN)
 const overLimit = computed(() => length.value > MAX_LEN)
-const canPublish = computed(() => draft.value.trim().length > 0 && !overLimit.value)
+const canPublish = computed(
+  () => draft.value.trim().length > 0 && !overLimit.value && !props.submitting,
+)
 
 let bumpTimer: ReturnType<typeof setTimeout> | undefined
 
-watch(length, () => {
+watch(length, (value) => {
+  // 清空（发布成功 reset / 全删）时计数归零，不需要再弹跳
+  if (value === 0) {
+    clearTimeout(bumpTimer)
+    bump.value = false
+    return
+  }
   bump.value = true
   clearTimeout(bumpTimer)
   bumpTimer = setTimeout(() => {
@@ -30,11 +40,20 @@ onUnmounted(() => {
   clearTimeout(bumpTimer)
 })
 
+/** 只向上报意图，草稿的去留由父级（请求结果）决定 */
 function submit(): void {
   if (!canPublish.value) return
   emit('submit', draft.value)
+}
+
+/** 发布成功后由父级调用，清空草稿并复位弹跳状态 */
+function reset(): void {
+  clearTimeout(bumpTimer)
+  bump.value = false
   draft.value = ''
 }
+
+defineExpose({ reset })
 
 function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {

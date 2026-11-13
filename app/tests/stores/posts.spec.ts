@@ -1,10 +1,23 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { STORAGE_KEY, loadPosts } from '@/storage/postStorage'
+import { ApiError, createPost, deletePost, fetchPosts } from '@/api/posts'
 import { usePostsStore } from '@/stores/posts'
 import { MAX_LEN, type Post } from '@/types/post'
 
-const NOW = new Date(2026, 10, 13, 12, 0, 0).getTime()
+// 保留真实的 ApiError，只替换三个请求函数，便于用同一个类构造错误
+vi.mock('@/api/posts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/api/posts')>()
+  return {
+    ...actual,
+    fetchPosts: vi.fn(),
+    createPost: vi.fn(),
+    deletePost: vi.fn(),
+  }
+})
+
+const fetchPostsMock = vi.mocked(fetchPosts)
+const createPostMock = vi.mocked(createPost)
+const deletePostMock = vi.mocked(deletePost)
 
 const seed: Post[] = [
   {
@@ -21,179 +34,190 @@ const seed: Post[] = [
   },
 ]
 
-function setup() {
-  const store = usePostsStore()
-  store.hydrate(seed)
-  return store
+function freshSeed(): Post[] {
+  return seed.map((post) => ({ ...post }))
 }
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  fetchPostsMock.mockResolvedValue(freshSeed())
 })
 
-describe('hydrate', () => {
-  it('首次启动灌入种子数据并持久化', () => {
-    const store = setup()
-
-    expect(store.posts).toHaveLength(2)
-    expect(store.posts[0].id).toBe(seed[0].id)
-    expect(loadPosts()).toHaveLength(2)
-  })
-
-  it('重复调用不会重复灌入或覆盖已有数据', () => {
-    const store = setup()
-    store.publish('新动态', NOW)
-
-    store.hydrate(seed)
-
-    expect(store.posts).toHaveLength(3)
-  })
-
-  it('本地已有数据时优先使用本地数据', () => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([seed[1]]))
-
+describe('初始状态', () => {
+  it('未调用 load 时为空列表且 status 为 idle', () => {
     const store = usePostsStore()
-    store.hydrate(seed)
 
-    expect(store.posts.map((post) => post.id)).toEqual([seed[1].id])
-  })
-
-  it('hydrate 之前列表为空，hydrate 之后才可发布', () => {
-    const store = usePostsStore()
+    expect(store.posts).toEqual([])
+    expect(store.status).toBe('idle')
+    expect(store.errorMessage).toBe('')
+    expect(store.count).toBe(0)
     expect(store.isEmpty).toBe(true)
+  })
+})
 
-    store.hydrate(seed)
+describe('load', () => {
+  it('成功时用后端数据填充列表并切到 ready', async () => {
+    const store = usePostsStore()
+
+    const loading = store.load()
+    expect(store.status).toBe('loading')
+    await loading
+
+    expect(fetchPostsMock).toHaveBeenCalledTimes(1)
+    expect(store.posts.map((post) => post.id)).toEqual(seed.map((post) => post.id))
+    expect(store.status).toBe('ready')
+    expect(store.errorMessage).toBe('')
+    expect(store.count).toBe(2)
     expect(store.isEmpty).toBe(false)
+  })
+
+  it('失败时 status 为 error 且写入可读错误信息，列表不变', async () => {
+    const store = usePostsStore()
+    fetchPostsMock.mockRejectedValue(new Error('无法连接后端服务'))
+
+    await store.load()
+
+    expect(store.status).toBe('error')
+    expect(store.errorMessage).toBe('无法连接后端服务')
+    expect(store.posts).toEqual([])
+  })
+
+  it('失败后再次成功会清空上一次的错误信息', async () => {
+    const store = usePostsStore()
+    fetchPostsMock.mockRejectedValueOnce(new Error('服务异常，请稍后重试'))
+
+    await store.load()
+    expect(store.errorMessage).toBe('服务异常，请稍后重试')
+
+    await store.load()
+
+    expect(store.status).toBe('ready')
+    expect(store.errorMessage).toBe('')
+    expect(store.posts).toHaveLength(2)
   })
 })
 
 describe('publish', () => {
-  it('新动态插入到列表头部，并补齐 id/time/ts', () => {
-    const store = setup()
+  it('空白内容直接返回 EMPTY，不请求后端', async () => {
+    const store = usePostsStore()
+    await store.load()
 
-    const result = store.publish('  今天天气不错  ', NOW)
+    await expect(store.publish('')).resolves.toEqual({ ok: false, error: 'EMPTY' })
+    await expect(store.publish('   \n  ')).resolves.toEqual({ ok: false, error: 'EMPTY' })
 
-    expect(result.ok).toBe(true)
-    expect(store.posts).toHaveLength(3)
-    const [latest] = store.posts
-    expect(latest.text).toBe('今天天气不错')
-    expect(latest.ts).toBe(NOW)
-    expect(latest.time).toBe('2026-11-13 12:00:00')
-    expect(latest.id).toMatch(new RegExp(`^${NOW}[0-9a-f]{4}$`))
-  })
-
-  it('发布后立即写入 localStorage', () => {
-    const store = setup()
-
-    store.publish('会落盘的内容', NOW)
-
-    expect(loadPosts()[0].text).toBe('会落盘的内容')
-  })
-
-  it('空白内容拒绝发布且不改变列表', () => {
-    const store = setup()
-
-    expect(store.publish('', NOW)).toEqual({ ok: false, error: 'EMPTY' })
-    expect(store.publish('   \n  ', NOW)).toEqual({ ok: false, error: 'EMPTY' })
+    expect(createPostMock).not.toHaveBeenCalled()
     expect(store.posts).toHaveLength(2)
   })
 
-  it('超过 500 字拒绝发布且不落盘', () => {
-    const store = setup()
+  it('超过 500 字返回 TOO_LONG，不请求后端', async () => {
+    const store = usePostsStore()
+    await store.load()
 
-    const result = store.publish('字'.repeat(MAX_LEN + 1), NOW)
+    const result = await store.publish('字'.repeat(MAX_LEN + 1))
 
     expect(result).toEqual({ ok: false, error: 'TOO_LONG' })
+    expect(createPostMock).not.toHaveBeenCalled()
     expect(store.posts).toHaveLength(2)
-    expect(loadPosts()).toHaveLength(2)
   })
 
-  it('恰好 500 字可以发布', () => {
-    const store = setup()
+  it('成功时把后端返回的动态置顶并返回 post', async () => {
+    const store = usePostsStore()
+    await store.load()
+    const created: Post = {
+      id: '1794538000000abcd',
+      text: '全新的动态',
+      time: '2026-11-13 12:00:00',
+      ts: 1794538000000,
+    }
+    createPostMock.mockResolvedValue(created)
 
-    const result = store.publish('字'.repeat(MAX_LEN), NOW)
+    const result = await store.publish('  全新的动态  ')
+
+    expect(createPostMock).toHaveBeenCalledWith('全新的动态')
+    expect(result).toEqual({ ok: true, post: created })
+    expect(store.posts[0].id).toBe(created.id)
+    expect(store.posts).toHaveLength(3)
+  })
+
+  it('恰好 500 字可以发布', async () => {
+    const store = usePostsStore()
+    await store.load()
+    createPostMock.mockResolvedValue({
+      id: 'x',
+      text: '字'.repeat(MAX_LEN),
+      time: '2026-11-13 12:00:00',
+      ts: 1794538000000,
+    })
+
+    const result = await store.publish('字'.repeat(MAX_LEN))
 
     expect(result.ok).toBe(true)
     expect(store.posts[0].text).toHaveLength(MAX_LEN)
   })
 
-  it('保留正文中的换行', () => {
-    const store = setup()
+  it('请求失败时返回 NETWORK 并保留原列表、写入错误信息', async () => {
+    const store = usePostsStore()
+    await store.load()
+    createPostMock.mockRejectedValue(new Error('无法连接后端服务'))
 
-    store.publish('第一行\n第二行', NOW)
+    const result = await store.publish('发不出去的内容')
 
-    expect(store.posts[0].text).toBe('第一行\n第二行')
-  })
-
-  it('存储写入失败时置位 storageError，但当前会话内容不丢失', () => {
-    const store = setup()
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('quota', 'QuotaExceededError')
-    })
-
-    const result = store.publish('超大内容', NOW)
-
-    expect(result.ok).toBe(true)
-    expect(store.posts).toHaveLength(3)
-    expect(store.storageError).toBe(true)
-  })
-
-  it('后续写入成功后清除 storageError', () => {
-    const store = setup()
-    const setItem = vi
-      .spyOn(Storage.prototype, 'setItem')
-      .mockImplementation(() => {
-        throw new DOMException('quota', 'QuotaExceededError')
-      })
-
-    store.publish('失败一次', NOW)
-    expect(store.storageError).toBe(true)
-
-    setItem.mockRestore()
-    store.publish('恢复后成功', NOW)
-
-    expect(store.storageError).toBe(false)
+    expect(result).toEqual({ ok: false, error: 'NETWORK' })
+    expect(store.errorMessage).toBe('无法连接后端服务')
+    expect(store.posts).toHaveLength(2)
   })
 })
 
 describe('remove', () => {
-  it('按 id 删除并立即持久化', () => {
-    const store = setup()
+  it('成功后调用 DELETE 并移除该条，返回 true', async () => {
+    const store = usePostsStore()
+    await store.load()
+    deletePostMock.mockResolvedValue(undefined)
 
-    expect(store.remove(seed[0].id)).toBe(true)
+    await expect(store.remove(seed[0].id)).resolves.toBe(true)
+
+    expect(deletePostMock).toHaveBeenCalledWith(seed[0].id)
     expect(store.posts.map((post) => post.id)).toEqual([seed[1].id])
-    expect(loadPosts().map((post) => post.id)).toEqual([seed[1].id])
   })
 
-  it('删除不存在的 id 时返回 false 且列表不变', () => {
-    const store = setup()
+  it('失败时返回 false、保留列表并写入错误信息', async () => {
+    const store = usePostsStore()
+    await store.load()
+    deletePostMock.mockRejectedValue(new Error('这条动态已不存在'))
 
-    expect(store.remove('not-exist')).toBe(false)
+    await expect(store.remove(seed[0].id)).resolves.toBe(false)
+
+    expect(store.errorMessage).toBe('这条动态已不存在')
     expect(store.posts).toHaveLength(2)
   })
 
-  it('可以删到空列表', () => {
-    const store = setup()
+  it('可以删到空列表', async () => {
+    const store = usePostsStore()
+    await store.load()
+    deletePostMock.mockResolvedValue(undefined)
 
-    store.remove(seed[0].id)
-    store.remove(seed[1].id)
+    await store.remove(seed[0].id)
+    await store.remove(seed[1].id)
 
     expect(store.isEmpty).toBe(true)
-    expect(loadPosts()).toEqual([])
+    expect(store.count).toBe(0)
   })
 })
 
 describe('exportPosts', () => {
-  it('导出当前全部动态，顺序与列表一致', () => {
-    const store = setup()
+  it('导出当前全部动态，顺序与列表一致', async () => {
+    const store = usePostsStore()
+    await store.load()
 
     const exported = store.exportPosts()
 
+    expect(exported).toEqual(seed)
     expect(exported.map((post) => post.id)).toEqual(store.posts.map((post) => post.id))
   })
 
-  it('返回快照副本，外部修改不影响 store 状态', () => {
-    const store = setup()
+  it('返回深拷贝快照，外部修改不影响 store 状态', async () => {
+    const store = usePostsStore()
+    await store.load()
 
     const exported = store.exportPosts()
     exported[0].text = '被改坏了'
@@ -202,14 +226,57 @@ describe('exportPosts', () => {
   })
 })
 
-describe('computed', () => {
-  it('count 与 isEmpty 随列表变化', () => {
+describe('isNetworkError', () => {
+  it('网络层失败（status 0）时为 true', async () => {
     const store = usePostsStore()
-    expect(store.count).toBe(0)
-    expect(store.isEmpty).toBe(true)
+    fetchPostsMock.mockRejectedValue(new ApiError('无法连接后端服务', 0))
 
-    store.hydrate(seed)
-    expect(store.count).toBe(2)
-    expect(store.isEmpty).toBe(false)
+    await store.load()
+
+    expect(store.isNetworkError).toBe(true)
+  })
+
+  it('服务端返回错误码时为 false，用于区分运维提示', async () => {
+    const store = usePostsStore()
+    fetchPostsMock.mockRejectedValue(new ApiError('服务异常，请稍后重试', 500))
+
+    await store.load()
+
+    expect(store.status).toBe('error')
+    expect(store.isNetworkError).toBe(false)
+  })
+
+  it('非 ApiError 的意外异常按连接问题处理', async () => {
+    const store = usePostsStore()
+    fetchPostsMock.mockRejectedValue(new TypeError('boom'))
+
+    await store.load()
+
+    expect(store.isNetworkError).toBe(true)
+  })
+
+  it('删除返回 404 时为 false，发布网络失败时为 true', async () => {
+    const store = usePostsStore()
+    await store.load()
+
+    deletePostMock.mockRejectedValue(new ApiError('这条动态已不存在', 404, 'NOT_FOUND'))
+    await store.remove(seed[0].id)
+    expect(store.isNetworkError).toBe(false)
+
+    createPostMock.mockRejectedValue(new ApiError('无法连接后端服务', 0))
+    await store.publish('发不出去')
+    expect(store.isNetworkError).toBe(true)
+  })
+})
+
+describe('clearError', () => {
+  it('清空错误信息', async () => {
+    const store = usePostsStore()
+    fetchPostsMock.mockRejectedValue(new Error('无法连接后端服务'))
+    await store.load()
+
+    store.clearError()
+
+    expect(store.errorMessage).toBe('')
   })
 })

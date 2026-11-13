@@ -9,7 +9,8 @@ export interface Post {
 /** 单条动态的正文长度上限 */
 export const MAX_LEN = 500
 
-export type PublishErrorCode = 'EMPTY' | 'TOO_LONG'
+/** EMPTY / TOO_LONG 为本地校验，NETWORK 表示后端请求失败 */
+export type PublishErrorCode = 'EMPTY' | 'TOO_LONG' | 'NETWORK'
 
 export type PublishResult =
   | { ok: true; post: Post }
