@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { nextTick } from 'vue'
+import { describe, expect, it, vi } from 'vitest'
 import PostComposer from '@/components/PostComposer.vue'
 
 function mountComposer() {
@@ -57,6 +58,26 @@ describe('PostComposer 字数统计', () => {
     expect(counter().text()).toBe('501 / 500')
     expect(counter().classes()).toContain('over')
     expect(submit().attributes('disabled')).toBeDefined()
+  })
+})
+
+describe('PostComposer 数字跳动', () => {
+  it('输入时计数轻弹一下，320ms 后复位', async () => {
+    vi.useFakeTimers()
+    const { input, counter } = mountComposer()
+
+    await input().setValue('嗨')
+    expect(counter().classes()).toContain('bump')
+
+    vi.advanceTimersByTime(320)
+    await nextTick()
+    expect(counter().classes()).not.toContain('bump')
+  })
+
+  it('初始挂载不弹跳', () => {
+    const { counter } = mountComposer()
+
+    expect(counter().classes()).not.toContain('bump')
   })
 })
 

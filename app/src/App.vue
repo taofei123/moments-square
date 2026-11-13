@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AmbientDecor from '@/components/AmbientDecor.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import PostComposer from '@/components/PostComposer.vue'
 import PostList from '@/components/PostList.vue'
@@ -23,6 +24,7 @@ function exportBackup(): void {
 </script>
 
 <template>
+  <AmbientDecor />
   <AppHeader />
 
   <div class="container">
@@ -52,8 +54,20 @@ function exportBackup(): void {
   padding: 10px 14px;
   font-size: 13px;
   color: #b45309;
-  background: #fef6e7;
+  background: linear-gradient(120deg, #fef6e7, #fff8f0);
   border: 1px solid #fbe2b7;
   border-radius: 12px;
+  animation: fadeUp 0.4s var(--ease-out) both;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

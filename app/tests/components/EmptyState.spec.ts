@@ -18,4 +18,12 @@ describe('EmptyState', () => {
     expect(wrapper.get('[data-test="empty-icon"]').text()).toBe('⚠️')
     expect(wrapper.get('[data-test="empty-message"]').text()).toBe('本地存储不可用')
   })
+
+  it('渲染 AI 生成的插画并带语义化 alt', () => {
+    const wrapper = mount(EmptyState)
+
+    const illustration = wrapper.get('[data-test="empty-illustration"]')
+    expect(illustration.attributes('src')).toContain('empty-garden')
+    expect(illustration.attributes('alt')).toBe('一株破土而出的小芽')
+  })
 })

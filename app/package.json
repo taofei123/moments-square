@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "动态广场 —— Vue 3 + Pinia + Local Storage 的极简动态发布页",
+  "description": "心情日志 —— Vue 3 + Pinia + Local Storage 的极简心情记录页",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",

@@ -16,9 +16,17 @@ describe('App 首屏', () => {
   it('展示品牌栏与首次进入的种子动态', () => {
     const wrapper = mountApp()
 
-    expect(wrapper.text()).toContain('动态广场')
+    expect(wrapper.text()).toContain('心情日志')
     expect(wrapper.findAll('[data-test="post-body"]')).toHaveLength(SEED_POSTS.length)
     expect(wrapper.text()).toContain(SEED_POSTS[0].text)
+  })
+
+  it('页面挂载装饰层且对读屏隐藏', () => {
+    const wrapper = mountApp()
+
+    const decor = wrapper.find('[data-test="ambient-decor"]')
+    expect(decor.exists()).toBe(true)
+    expect(decor.attributes('aria-hidden')).toBe('true')
   })
 
   it('页脚说明数据保存在 Local Storage', () => {

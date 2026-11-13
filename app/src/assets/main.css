@@ -4,12 +4,28 @@
   --card: #ffffff;
   --primary: #5b6cff;
   --primary2: #845ef7;
+  --primary3: #6c7bff;
   --text: #1f2329;
   --muted: #8a919f;
   --border: #eceff5;
   --danger: #ef4444;
+  --warn: #f59e0b;
+
+  /* 新增的装饰色：只用于光斑与光晕，不改品牌主色 */
+  --glow-cyan: #22d3ee;
+  --glow-pink: #fb7185;
+  --glow-violet: #845ef7;
+  --aurora-1: rgba(91, 108, 255, 0.5);
+  --aurora-2: rgba(132, 94, 247, 0.4);
+  --aurora-3: rgba(34, 211, 238, 0.32);
+  --aurora-4: rgba(251, 113, 133, 0.28);
+
   --shadow: 0 8px 24px rgba(31, 41, 55, 0.08);
   --shadow-hover: 0 12px 30px rgba(91, 108, 255, 0.16);
+  --shadow-glow: 0 18px 42px -20px rgba(91, 108, 255, 0.65);
+  --ring-soft: 0 0 0 1px rgba(132, 94, 247, 0.16);
+
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 * {
@@ -28,15 +44,53 @@ body {
     'Microsoft YaHei', sans-serif;
   color: var(--text);
   line-height: 1.6;
-  background: linear-gradient(160deg, var(--bg1), var(--bg2));
+  background: linear-gradient(165deg, var(--bg1), var(--bg2) 58%, #f2eeff);
   background-attachment: fixed;
   padding: 0 0 40px;
+  overflow-x: hidden;
+}
+
+/* 背景层一：缓慢流动的多色极光 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -18%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 40% at 16% 20%, var(--aurora-1), transparent 70%),
+    radial-gradient(32% 36% at 84% 16%, var(--aurora-3), transparent 72%),
+    radial-gradient(40% 38% at 74% 76%, var(--aurora-4), transparent 74%),
+    radial-gradient(44% 44% at 26% 82%, var(--aurora-2), transparent 72%);
+  filter: blur(8px);
+  animation: auroraShift 22s var(--ease-out) infinite alternate;
+}
+
+/* 背景层二：AI 生成的柔光星尘纹理叠加 */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url('./textures/aurora-glow.jpg') center / cover no-repeat;
+  mix-blend-mode: soft-light;
+  opacity: 0.42;
+  animation: auroraFade 18s ease-in-out infinite alternate;
+}
+
+#app {
+  position: relative;
+  z-index: 1;
 }
 
 .container {
+  position: relative;
+  z-index: 1;
   max-width: 600px;
   margin: -18px auto 0;
   padding: 0 14px;
+  animation: fadeUp 0.6s var(--ease-out) both;
 }
 
 .toolbar {
@@ -47,19 +101,28 @@ body {
 }
 
 button {
+  position: relative;
   font-family: inherit;
   font-size: 14px;
   border: none;
   border-radius: 10px;
   cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.2s, opacity 0.2s;
+  transition: transform 0.18s var(--ease-out), box-shadow 0.25s var(--ease-out),
+    color 0.2s var(--ease-out), background 0.25s var(--ease-out), opacity 0.2s;
 }
 
 button:active {
   transform: scale(0.96);
 }
 
+button:focus-visible {
+  outline: 2px solid rgba(91, 108, 255, 0.55);
+  outline-offset: 2px;
+}
+
 .btn-primary {
+  overflow: hidden;
+  isolation: isolate;
   background: linear-gradient(135deg, var(--primary), var(--primary2));
   color: #fff;
   padding: 9px 22px;
@@ -67,8 +130,28 @@ button:active {
   box-shadow: 0 6px 16px rgba(91, 108, 255, 0.3);
 }
 
-.btn-primary:hover {
-  box-shadow: 0 8px 20px rgba(91, 108, 255, 0.45);
+/* 悬浮时的光泽扫过 */
+.btn-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    115deg,
+    transparent 22%,
+    rgba(255, 255, 255, 0.55) 46%,
+    transparent 68%
+  );
+  transform: translateX(-130%);
+  transition: transform 0.65s var(--ease-out);
+}
+
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 10px 24px rgba(91, 108, 255, 0.45);
+}
+
+.btn-primary:hover:not(:disabled)::after {
+  transform: translateX(130%);
 }
 
 .btn-primary:disabled {
@@ -90,6 +173,8 @@ button:active {
 .btn-ghost:hover {
   color: var(--primary);
   background: #eef0ff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px -10px rgba(91, 108, 255, 0.7);
 }
 
 footer {
@@ -104,4 +189,44 @@ footer code {
   color: var(--primary);
   padding: 1px 6px;
   border-radius: 6px;
+}
+
+@keyframes auroraShift {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 2%, 0) scale(1.08);
+  }
+}
+
+@keyframes auroraFade {
+  from {
+    opacity: 0.28;
+  }
+  to {
+    opacity: 0.5;
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 系统开启「减少动态效果」时静默所有动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }
